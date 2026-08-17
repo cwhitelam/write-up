@@ -46,7 +46,7 @@ code block.
 Requires Python 3.8 or newer and git. Nothing else.
 
 ```bash
-git clone https://github.com/YOUR-ORG/write-up.git
+git clone https://github.com/cwhitelam/write-up.git
 cd write-up
 python install.py --with-hook          # installs to ~/.claude/skills/write-up
 ```
