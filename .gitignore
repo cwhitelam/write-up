@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.DS_Store
+Thumbs.db
+
+# Generated wiki artifacts, if you keep a wiki in this repo itself. Articles and
+# their assets are what you commit; these rebuild with `writeup.py build`.
+# Anchored to the repo root, so the sample wiki under example/ is unaffected and
+# ships as committed output.
+/docs/write-ups/index.html
+/docs/write-ups/manifest.js
+/docs/write-ups/.sweep-stamp
+/docs/write-ups/.skip-*
