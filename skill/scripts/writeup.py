@@ -458,6 +458,16 @@ def cmd_build(args):
     out = tpl.replace("{{PROJECT}}", esc(project))
     out = out.replace("{{SUFFIX}}", "" if stutters else " Write-ups")
     out = out.replace("{{TAG}}", "wiki" if stutters else "write-ups")
+    # A wiki published somewhere public (GitHub Pages, an internal host) is read
+    # by people who never saw the repo, so link it back when the forge is known.
+    repo_url = (cfg.get("forge") or {}).get("repoUrl") or ""
+    out = out.replace(
+        "{{REPOLINK}}",
+        '<p class="sub"><a href="%s">%s</a></p>'
+        % (esc(repo_url), esc(re.sub(r"^https?://", "", repo_url)))
+        if repo_url
+        else "",
+    )
     out = re.sub(
         r'(<ol class="entries">).*?(</ol>)',
         lambda m: m.group(1) + "\n" + "\n".join(rows) + "\n  " + m.group(2),

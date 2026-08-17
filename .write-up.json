@@ -1,0 +1,28 @@
+{
+  "project": "Write-up",
+  "outputDir": "docs",
+  "forge": {
+    "type": "github",
+    "repoUrl": "https://github.com/cwhitelam/write-up",
+    "branchUrl": "https://github.com/cwhitelam/write-up/tree/{branch}",
+    "fileUrl": "https://github.com/cwhitelam/write-up/blob/{branch}/{path}",
+    "ticketUrl": "https://github.com/cwhitelam/write-up/issues/{id}",
+    "prUrl": "https://github.com/cwhitelam/write-up/pull/{id}",
+    "defaultBranch": "main"
+  },
+  "hook": {
+    "enabled": true,
+    "wrapUp": true,
+    "dayEntries": true,
+    "mergeSweep": false,
+    "skipBranches": [
+      "main",
+      "master",
+      "develop"
+    ]
+  },
+  "screenshots": {
+    "enabled": true,
+    "quality": 85
+  }
+}
