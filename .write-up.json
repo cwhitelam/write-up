@@ -1,6 +1,6 @@
 {
   "project": "Write-up",
-  "outputDir": "docs",
+  "outputDir": "docs/wiki",
   "forge": {
     "type": "github",
     "repoUrl": "https://github.com/cwhitelam/write-up",

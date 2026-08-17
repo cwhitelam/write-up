@@ -42,8 +42,15 @@ def settings_for(dest, project):
 
 
 def hook_command(dest):
-    script = os.path.join(dest, "scripts", "writeup.py")
-    return '%s "%s" hook' % ("python" if sys.platform == "win32" else "python3", script)
+    """The Stop-hook command line.
+
+    A shell script, not this file: Claude Code runs hook commands through
+    `sh -c` on macOS and Linux and Git Bash on Windows, so sh is the one
+    interpreter present on every machine that can run this tool at all.
+    Python is optional here and stays optional.
+    """
+    script = os.path.join(dest, "hooks", "write-up-hook.sh").replace("\\", "/")
+    return 'sh "%s"' % script
 
 
 def wire_hook(settings_path, dest):
@@ -62,7 +69,7 @@ def wire_hook(settings_path, dest):
     stop = hooks.setdefault("Stop", [])
     for group in stop:
         for h in group.get("hooks", []):
-            if "writeup.py" in str(h.get("command", "")):
+            if "write-up-hook.sh" in str(h.get("command", "")):
                 h["command"] = cmd  # refresh the path on re-install
                 _write_json(settings_path, data)
                 print("  hook already present, path refreshed")

@@ -30,7 +30,13 @@ transcripts nobody reopens.
 
 ## The toolchain
 
-Every script is one Python CLI that lives beside this file:
+Two pieces, and only the first is required.
+
+**The Stop hook**, `hooks/write-up-hook.sh`, is POSIX sh. Claude Code invokes it; you
+never do. It needs nothing installed, because Claude Code runs hook commands through
+`sh -c` on macOS and Linux and Git Bash on Windows.
+
+**The CLI**, `scripts/writeup.py`, is optional and needs Python 3.8 or newer:
 
 ```
 python <skill-dir>/scripts/writeup.py <command>
@@ -40,16 +46,19 @@ python <skill-dir>/scripts/writeup.py <command>
 `~/.claude/skills/write-up` (user install) or `<repo>/.claude/skills/write-up`
 (project install). Resolve it once, then reuse it.
 
-| Command | What it does |
-|---|---|
-| `init` | Write `.write-up.json`, create the wiki folder, install the runtime JS. Run once per repo. |
-| `build` | Regenerate `index.html` + `manifest.js` from the article set. Run after writing or removing any article. |
-| `digest` | Replay past Claude sessions for this repo as one chronological digest. `--list` indexes every session (id, date, message count, opening line); `--session <id>`, `--branch <b>`, `--since <date>`, `--grep <text>`, `--all` scope it. |
-| `suggest [article]` | Propose glossary candidates from an article's prose. |
-| `shot --window <re> --slug <s>` | Capture a screenshot into the branch's assets folder. |
-| `doctor` | Check the install and report what is missing. |
+**Check for Python once per session, before you rely on it** (`python --version` or
+`python3 --version`). If it is missing, use the right-hand column. Never tell the user
+to install Python; every job here has a path that does not need it.
 
-`hook` is invoked by the Stop hook, never by you.
+| Command | What it does | If Python is absent |
+|---|---|---|
+| `init` | Write `.write-up.json`, create the wiki folder, install the runtime JS. Once per repo. | Read `git remote -v`, write the config yourself (shape below), and copy `write-up-ui.js` and `glossary.seed.js` from `<skill-dir>/assets/` into the wiki folder, naming the second one `glossary.js`. |
+| `build` | Rebuild `index.html` + `manifest.js` from every article on disk. | Not needed. Step 8 has you update both directly, one entry each. Use `build` only to repair a wiki that has drifted. |
+| `digest` | Replay past Claude sessions for this repo as one chronological digest. `--list` indexes every session (id, date, message count, opening line); `--session <id>`, `--branch <b>`, `--since <date>`, `--grep <text>`, `--all` scope it. | Read the `.jsonl` transcripts under `~/.claude/projects/<encoded-cwd>/` with Grep and Read. Slower and costlier, so scope it tightly. |
+| `suggest [article]` | Propose glossary candidates from an article's prose. | Skip it. You already know which terms in your own prose are non-obvious. |
+| `shot --window <re> --slug <s>` | Capture a screenshot into the branch's assets folder. | Use the browser tools for web pages. Desktop windows need the CLI. |
+| `sweep` | List Mid-flight articles whose branch already has a merged pull request. The only command that makes a network call. | Ask the user which branches have merged. |
+| `doctor` | Check the install and report what is missing. | Check the files exist yourself. |
 
 ## Configuration
 
@@ -252,10 +261,38 @@ down, cap two), skipping code, links, headings, the infobox, and references.
 6. **Write** the filled HTML. Keep the `<style>`, the three script includes, and the
    trailing `<script>` byte-identical to the template.
 7. **Refresh the glossary** when the article introduces new terms (see Glossary above).
-8. **Regenerate the wiki**: `python <skill-dir>/scripts/writeup.py build`. This rebuilds
-   both `index.html` (front page, newest first) and `manifest.js` (search, hover previews,
-   backlinks, status chips). The index is a **generated artifact**: never hand-edit it and
-   never add `li.entry` by hand. Write the article, then run this.
+8. **Add the article to the wiki index.** Two small edits, both in the wiki folder:
+
+   **`manifest.js`** holds `window.WRITEUPS = [ ... ]`, newest first. Insert one object at
+   the front:
+
+   ```js
+   {"slug": "<slug>", "title": "<title>", "lead": "<the lead paragraph, plain text>",
+    "status": "Shipped", "ticket": "", "date": "YYYY-MM-DD", "refs": ["<other-slug>"],
+    "body": "<search text: the lead, every section heading, and the first sentence of
+             each section. A few hundred characters, not the whole article.>"}
+   ```
+
+   `refs` lists the slugs this article links to; the wiki derives every "Referenced by"
+   backlink from it, so an omitted ref is a missing backlink on the other page.
+
+   **`index.html`** holds `<ol class="entries">`. Insert one row at the top:
+
+   ```html
+   <li class="entry">
+     <a class="t" href="<slug>.html"><title></a>
+     <p><one-sentence lead snippet></p>
+     <span class="m">YYYY-MM-DD &middot; <code><slug></code> &middot; Shipped</span>
+   </li>
+   ```
+
+   Match the surrounding rows exactly. If the wiki is empty and has no `index.html` yet,
+   copy `<skill-dir>/assets/index-template.html`, substituting `{{PROJECT}}` with the
+   project name, `{{SUFFIX}}` and `{{TAG}}` per the config, and `{{REPOLINK}}` with a link
+   to `forge.repoUrl` (or nothing when there is no forge).
+
+   With Python available, `writeup.py build` does all of this from the articles on disk.
+   Prefer it when it is there, and treat it as the repair tool when a wiki has drifted.
 9. **Tell the user the path and open it.**
 
 ## Refreshing an existing article
@@ -277,7 +314,8 @@ only where the story actually grew:
   verbatim copies, so this is mechanical) and leave `<article>` content alone.
 
 Never reword prose that still tells the story correctly. Wording churn produces a noisy
-diff and destroys the article's stability for zero gain. Run `build` when done.
+diff and destroys the article's stability for zero gain. Update the manifest entry
+(step 8) if the lead, status or refs changed; leave it alone if only prose moved.
 
 ## Final sweep (after merge)
 
@@ -287,7 +325,8 @@ patch that article:
 - Infobox **Status** becomes Merged; add a **PR** row using `forge.prUrl`; add the merge date.
 - **Repoint Reference links** from the branch to the default branch, since the source branch
   is often deleted at merge and every code link would 404. Drop any "resolve once pushed" note.
-- Patch only, regenerate nothing, then run `build`.
+- Patch only, regenerate nothing. Update the article's `status` in `manifest.js` and
+  its status chip in `index.html` to match.
 
 ## Where the wiki lives
 
@@ -302,4 +341,4 @@ patch that article:
   main checkout is the single canonical wiki. Because articles do not travel through git, a
   worktree only ever holds its own branch's article: to gather everything on one front page,
   copy the worktree's `<branch>.html` and its `assets/<branch>/` into the main checkout's
-  wiki folder, then run `build` there.
+  wiki folder, then add its manifest and index entries there (step 8).

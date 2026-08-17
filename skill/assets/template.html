@@ -1,3 +1,4 @@
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='25' x='16' text-anchor='middle' font-family='Georgia,serif' font-size='25' font-weight='600' fill='%23888'>W</text></svg>">
 <title>{{TITLE}}</title>
 <meta charset="utf-8">
 <script>const jmT = localStorage.getItem('jm-theme'); if (jmT) document.documentElement.dataset.theme = jmT;</script>
@@ -225,9 +226,12 @@
     <section id="journal">
       <h2>Day by day</h2>
       <!-- The work as a dated journal: `git log --date=short` (commit dates + messages) grouped
-           by day, plus the session digest. One .day per working day, oldest first. -->
+           by day, plus the session digest. One .day per working day, oldest first.
+           data-day is REQUIRED and must be ISO YYYY-MM-DD: the Stop hook greps for it to decide
+           whether today is already logged. Omit it and the hook cannot see the entry, so it asks
+           for one every single day. The .date div is the human label; keep both. -->
       <div class="journal">
-        <div class="day"><div class="date">{{Weekday &middot; Mon DD}}</div><h3>{{DAY_TITLE: what that day was about}}</h3>
+        <div class="day" data-day="{{YYYY-MM-DD}}"><div class="date">{{Weekday &middot; Mon DD}}</div><h3>{{DAY_TITLE: what that day was about}}</h3>
           <ul><li>{{ACCOMPLISHMENT: what got done / changed that day. Repeat.}}</li></ul></div>
         <!-- repeat .day per working day -->
       </div>

@@ -1,0 +1,16 @@
+# Shell scripts MUST check out as LF. A .sh with CRLF line endings dies on macOS and
+# Linux with "bad interpreter: /bin/sh^M", which would break the one component that has
+# to run everywhere. Without this, a clone on a Windows machine with core.autocrlf=true
+# produces a hook that cannot start.
+*.sh text eol=lf
+
+# The rest is LF too, so contributors on different platforms do not trade whole-file
+# diffs every time they touch something.
+*.py   text eol=lf
+*.md   text eol=lf
+*.json text eol=lf
+*.js   text eol=lf
+*.html text eol=lf
+
+*.jpg binary
+*.png binary

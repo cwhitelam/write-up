@@ -8,7 +8,7 @@ One CLI, Python 3.8+, standard library only (Pillow is optional and only for `sh
   writeup.py digest    combine every Claude session about a branch into one story digest
   writeup.py suggest   propose glossary candidates from an article's prose
   writeup.py shot      capture a screenshot into the branch's assets folder
-  writeup.py hook      Stop-hook gate (reads the hook payload on stdin)
+  writeup.py sweep     find Mid-flight articles whose pull request has merged
   writeup.py doctor    check the install and report what is missing
 
 Every command works from anywhere inside the repo (or a git worktree of it).
@@ -27,6 +27,7 @@ import time
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 SKILL_DIR = os.path.dirname(SCRIPT_DIR)
 ASSET_DIR = os.path.join(SKILL_DIR, "assets")
+HOOK_SCRIPT = os.path.join(SKILL_DIR, "hooks", "write-up-hook.sh")
 CONFIG_NAME = ".write-up.json"
 
 # Runtime files copied into the wiki folder. The articles load these by relative
@@ -52,7 +53,6 @@ DEFAULTS = {
         "enabled": True,
         "wrapUp": True,
         "dayEntries": True,
-        "mergeSweep": False,
         "skipBranches": ["main", "master", "develop"],
     },
     "screenshots": {"enabled": True, "quality": 85},
@@ -940,12 +940,7 @@ def cmd_shot(args):
     return 0
 
 
-# -------------------------------------------------------------------------- hook
-
-
-def block(reason):
-    print(json.dumps({"decision": "block", "reason": reason}, separators=(",", ":")))
-    sys.exit(0)
+# ------------------------------------------------------------------------- sweep
 
 
 def merged_pr(cfg, branch):
@@ -1003,150 +998,40 @@ def merged_pr(cfg, branch):
     return None
 
 
-def cmd_hook(args):
-    # A hook must never break the session: every path below ends in exit 0.
-    try:
-        raw = sys.stdin.read() if not sys.stdin.isatty() else ""
-    except Exception:
-        raw = ""
-    payload = {}
-    if raw:
-        try:
-            payload = json.loads(raw)
-        except Exception:
-            payload = {}
-    if payload.get("stop_hook_active"):
-        return 0  # already inside a stop-hook cycle, never re-fire
-    cwd = payload.get("cwd")
-    if cwd and os.path.isdir(cwd):
-        os.chdir(cwd)
+def cmd_sweep(args):
+    """Report Mid-flight articles whose branch already has a merged pull request.
 
-    root = repo_root()
-    branch = current_branch()
-    if not root or not branch:
-        return 0
+    This is the one feature that touches the network, so it lives here in the optional
+    CLI and not in the Stop hook. A hook that makes an HTTP call is a hook that hangs.
+    """
+    root = repo_root() or die("not in a git repository")
     cfg = load_config(root)
-    hook = cfg["hook"]
-    if not hook.get("enabled", True):
-        return 0
     wdir = wiki_dir(root, cfg)
-    rel = cfg["outputDir"].rstrip("/")
-    slug = slug_for(branch)
-    article = os.path.join(wdir, slug + ".html")
-    skip_all = os.path.join(wdir, ".skip-" + slug)
-    skip_day = os.path.join(wdir, ".skip-day-" + slug)
+    if not os.path.isdir(wdir):
+        die("no wiki folder at %s" % wdir)
 
-    # ---- merge sweep (default branch only) -------------------------------
-    if branch in hook.get("skipBranches", []):
-        if not hook.get("mergeSweep") or not os.path.isdir(wdir):
-            return 0
-        cands = []
-        for f in glob.glob(os.path.join(wdir, "*.html")):
-            if os.path.basename(f) == "index.html":
-                continue
-            try:
-                with open(f, encoding="utf-8") as fh:
-                    if re.search(r"<dd>(Mid-flight|In review)", fh.read()):
-                        cands.append(os.path.splitext(os.path.basename(f))[0])
-            except Exception:
-                continue
-        if not cands:
-            return 0
-        stamp = os.path.join(wdir, ".sweep-stamp")
-        if os.path.exists(stamp) and (time.time() - os.path.getmtime(stamp)) < 6 * 3600:
-            return 0
-        open(stamp, "a").close()
-        os.utime(stamp, None)  # touch BEFORE the network so failures do not retry-spam
-        merged = []
-        for b in cands:
-            got = merged_pr(cfg, b)
-            if got:
-                merged.append("%s -> PR %s merged %s" % (b, got[0], got[1]))
-        if not merged:
-            return 0
-        block(
-            "Write-up final sweep: merged branch(es) still have Mid-flight/In review "
-            "articles: %s. For each, invoke the write-up skill in FINAL SWEEP mode: set the "
-            "infobox Status to Merged, add a PR row using forge.prUrl from %s, add the merge "
-            "date, repoint Reference links from the branch to %s, and drop any 'resolve once "
-            "pushed' note. Patch only; regenerate nothing, then run: writeup.py build."
-            % ("; ".join(merged), CONFIG_NAME, cfg["forge"].get("defaultBranch", "main"))
-        )
+    kind = cfg["forge"]["type"]
+    if kind not in ("github", "azure"):
+        die("sweep supports github (via the gh CLI) and azure (via a PAT); forge is %r" % kind)
 
-    # ---- day entry (runs before the wrap-up gates, deliberately) ---------
-    # Wrap-up needs a clean, pushed tree. A day journal has to be written while work
-    # is still in progress, so this gate is looser: an article exists, real work
-    # happened today, today is not logged yet.
-    if hook.get("dayEntries") and os.path.exists(article):
-        if not os.path.exists(skip_all) and not os.path.exists(skip_day):
-            today = time.strftime("%Y-%m-%d")
-            try:
-                with open(article, encoding="utf-8") as fh:
-                    body = fh.read()
-            except Exception:
-                body = ""
-            closed = re.search(r"<dd>(Merged|Shipped|In use)", body)
-            if not closed and ('data-day="%s"' % today) not in body:
-                if git("log", "--since=midnight", "--oneline") or git("status", "--porcelain"):
-                    block(
-                        "End of a working day on %s and %s is not in the write-up's Day by day "
-                        "section yet. Invoke the write-up skill in DAY ENTRY mode: append ONE "
-                        'new <div class="day" data-day="%s"> to the Day by day section of '
-                        "%s/%s.html, oldest-first order, with a short title and 2-5 bullets of "
-                        "what actually got done and decided today, from what you already hold in "
-                        "session context. Do not re-read the transcript, do not touch any other "
-                        "section, do not regenerate the article. If a decision today was "
-                        "load-bearing, also add one .dec entry to Decisions. To silence day "
-                        "entries for this branch, create %s/.skip-day-%s."
-                        % (branch, today, today, rel, slug, rel, slug)
-                    )
-
-    if not hook.get("wrapUp", True):
+    hits = 0
+    for item in scan_articles(wdir):
+        if (item.get("status") or "").lower() not in ("mid-flight", "midflight", "in progress"):
+            continue
+        found = merged_pr(cfg, item["slug"])
+        if not found:
+            continue
+        hits += 1
+        pr_id, when = found
+        print("%s.html  PR #%s merged %s" % (item["slug"], pr_id, when or "?"))
+    if not hits:
+        print("nothing to close out")
         return 0
-    if git("status", "--porcelain"):
-        return 0  # uncommitted work, not wrap-up yet
-
-    default = cfg["forge"].get("defaultBranch", "main")
-    base = None
-    for ref in ("origin/" + default, default):
-        if git("rev-parse", "--verify", "--quiet", ref):
-            base = ref
-            break
-    if base:
-        ahead = git("rev-list", "--count", "%s..HEAD" % base)
-        if not ahead or ahead == "0":
-            return 0
-
-    if git("remote") and git("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}") is None:
-        return 0  # has a remote but this branch was never pushed
-
-    if os.path.exists(skip_all):
-        return 0
-
-    if os.path.exists(article):
-        # Fire once more only if the article went STALE: commits landed after it was
-        # written. A refresh patches deltas, it never regenerates (see SKILL.md).
-        last = git("log", "-1", "--format=%ct")
-        if not last or not last.isdigit():
-            return 0
-        if int(last) <= int(os.path.getmtime(article)):
-            return 0
-        block(
-            "Branch %s has commits newer than its write-up (%s/%s.html). Invoke the write-up "
-            "skill in REFRESH mode: read the existing article and patch only what changed since "
-            "(new What bullets, appended How steps, infobox rows, new Highlights/References, "
-            "rewritten Open). Do not regenerate unchanged prose. Then run: writeup.py build. "
-            "If the article should stay as-is, create %s/.skip-%s to silence this."
-            % (branch, rel, slug, rel, slug)
-        )
-
-    block(
-        "Branch %s looks finished: committed, pushed, ahead of %s, and it has no write-up yet. "
-        "Invoke the write-up skill to write %s/%s.html from what you already know of this work "
-        "(do not re-read the transcript), then run: writeup.py build. If no write-up is wanted, "
-        "create %s/.skip-%s to silence this."
-        % (branch, base or default, rel, slug, rel, slug)
-    )
+    print("")
+    print("Invoke the write-up skill in FINAL SWEEP mode for each: set Status to Merged, "
+          "add the PR row, and repoint Reference links to %s."
+          % cfg["forge"].get("defaultBranch", "main"))
+    return 0
 
 
 # ------------------------------------------------------------------------ doctor
@@ -1166,7 +1051,11 @@ def cmd_doctor(args):
     check("SKILL.md", os.path.exists(os.path.join(SKILL_DIR, "SKILL.md")), SKILL_DIR)
     for a in ("template.html", "index-template.html", "write-up-ui.js", "glossary.seed.js"):
         check("assets/" + a, os.path.exists(os.path.join(ASSET_DIR, a)))
-    check("python >= 3.8", sys.version_info >= (3, 8), sys.version.split()[0])
+    check("hooks/write-up-hook.sh", os.path.exists(HOOK_SCRIPT))
+    # Python is the optional half. It is reported, not required: the hook and the
+    # daily loop run without it.
+    print("  ..   python       %s (optional: build, digest, suggest, shot)"
+          % sys.version.split()[0])
 
     print("\nrepo")
     root = repo_root()
@@ -1195,7 +1084,7 @@ def cmd_doctor(args):
     ):
         try:
             with open(p, encoding="utf-8") as fh:
-                if "writeup.py" in fh.read():
+                if "write-up-hook.sh" in fh.read():
                     found.append(p)
         except Exception:
             continue
@@ -1254,8 +1143,8 @@ def build_parser():
     sh.add_argument("--settle-ms", type=int, default=450)
     sh.set_defaults(func=cmd_shot)
 
-    h = sub.add_parser("hook", help="Stop-hook gate (reads the payload on stdin)")
-    h.set_defaults(func=cmd_hook)
+    sw = sub.add_parser("sweep", help="find Mid-flight articles whose PR has merged")
+    sw.set_defaults(func=cmd_sweep)
 
     dr = sub.add_parser("doctor", help="check the install")
     dr.set_defaults(func=cmd_doctor)
