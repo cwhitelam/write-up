@@ -13,8 +13,10 @@ session and still cheap to capture. A week later it is gone, and six months late
 honest answer to "why is it built this way" is that nobody remembers.
 
 The unit is a piece of work, whatever that means for you: a branch, a feature, a debugging
-session that finally landed, a refactor, a spike that answered a question. No ticket system
-required. No issue number required. No branch required.
+session that finally landed, a refactor, a spike that answered a question. It does not have
+to be code. Research that reached an answer, a data investigation, a decision argued out
+over one long session: all of it fits the same six sections. No ticket system required, no
+issue number, no branch.
 
 **[See it live: cwhitelam.github.io/write-up](https://cwhitelam.github.io/write-up/)**
 
@@ -105,6 +107,31 @@ Bash on Windows, so a shell script needs nothing installed anywhere. Python is n
 position. macOS has shipped no bundled Python 3 since 12.3, where `python3` is a stub that
 triggers an Xcode Command Line Tools prompt, and Windows ships none at all. Making the
 required half `sh` is what lets this be a clone-and-go install.
+
+## Two places a wiki can live
+
+**In a repository.** `/write-up setup` writes `.write-up.json` at the repo root and articles
+go to `docs/write-ups/`. Articles link back to code through the forge, and the Stop hook can
+watch for finished branches.
+
+**In your home directory**, for work that has no repo at all:
+
+```bash
+writeup.py init --home        # or just run init outside any repo
+```
+
+That writes `~/.write-up.json` and puts articles in `~/.claude/write-ups/`, under the
+wordmark **Notebook**. Nothing links to code, because there is no code, and References stay
+plain text.
+
+Which one you get is automatic: an initialised repo always wins, then a home config, then any
+repo, then home. So `/write-up` works in a scratch directory the same way it works in a repo.
+
+**The Stop hook only ever fires inside a repository.** Its trigger is branch state, clean tree
+plus pushed plus ahead of the default branch, and there is no honest equivalent for a research
+session. A hook that guessed at "this feels finished" would interrupt constantly and get turned
+off, so outside a repo there is no automatic prompt and `/write-up` is the way in. That is a
+deliberate limit, not a gap.
 
 ## Using it with another agent
 

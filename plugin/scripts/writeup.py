@@ -128,6 +128,32 @@ def deep_merge(base, over):
     return out
 
 
+HOME_OUTPUT_DIR = ".claude/write-ups"
+
+
+def home_root():
+    return os.path.expanduser("~")
+
+
+def resolve_scope():
+    """Where this invocation's wiki lives: ("<root>", "repo") or ("<home>", "home").
+
+    Not every piece of work worth writing up is a branch. Research that answered a
+    question, a data investigation, a decision reached in one long conversation: none of
+    those have a repo, and before this they had nowhere to go. An initialised repo always
+    wins so a project's wiki is never bypassed by accident; otherwise a home config, then
+    any repo at all, then home as the last resort.
+    """
+    root = repo_root()
+    if root and os.path.exists(config_path(root)):
+        return root, "repo"
+    if os.path.exists(config_path(home_root())):
+        return home_root(), "home"
+    if root:
+        return root, "repo"
+    return home_root(), "home"
+
+
 def config_path(root):
     return os.path.join(root, CONFIG_NAME)
 
@@ -151,6 +177,14 @@ def load_config(root):
             except Exception as e:
                 warn("could not read %s (%s); using defaults" % (p, e))
     merged = deep_merge(DEFAULTS, cfg)
+    if root and os.path.normpath(root) == os.path.normpath(home_root()):
+        # A home wiki has no project and no forge. "Notebook" beats the username, and
+        # the output dir has to move out of the way of anything else in $HOME.
+        merged.setdefault("outputDir", HOME_OUTPUT_DIR)
+        if not cfg.get("outputDir"):
+            merged["outputDir"] = HOME_OUTPUT_DIR
+        if not merged.get("project"):
+            merged["project"] = "Notebook"
     if not merged.get("project"):
         merged["project"] = os.path.basename(root.rstrip(os.sep)) if root else "Write-ups"
     return merged
@@ -159,6 +193,12 @@ def load_config(root):
 def wiki_dir(root, cfg):
     return os.path.join(root, *cfg["outputDir"].replace("\\", "/").split("/"))
 
+
+def nl_join(entries):
+    """Join manifest entries one per line, so git can merge concurrent additions."""
+    if not entries:
+        return ""
+    return "\n  " + ",\n  ".join(entries) + "\n"
 
 def warn(msg):
     print("write-up: " + msg, file=sys.stderr)
@@ -297,25 +337,41 @@ def ensure_runtime(wdir):
 
 
 def cmd_init(args):
-    root = repo_root()
-    if not root:
-        die("not inside a git repository")
+    if args.home:
+        root, scope = home_root(), "home"
+    else:
+        root = repo_root()
+        scope = "repo"
+        if not root:
+            root, scope = home_root(), "home"
+            warn("no git repository here, setting up the home wiki instead "
+                 "(%s). Use --home to ask for this explicitly." % HOME_OUTPUT_DIR)
     cfg_file = config_path(root)
     if os.path.exists(cfg_file) and not args.force:
         print("%s already exists (use --force to overwrite)" % CONFIG_NAME)
         cfg = load_config(root)
     else:
-        remote = git("remote", "get-url", "origin", cwd=root)
-        forge = detect_forge(remote)
-        forge["defaultBranch"] = default_branch_of(root)
+        if scope == "home":
+            remote, forge = None, dict(DEFAULTS["forge"])
+        else:
+            remote = git("remote", "get-url", "origin", cwd=root)
+            forge = detect_forge(remote)
+            forge["defaultBranch"] = default_branch_of(root)
         cfg = deep_merge(DEFAULTS, {})
-        cfg["project"] = args.project or os.path.basename(root.rstrip(os.sep))
+        if scope == "home":
+            cfg["outputDir"] = HOME_OUTPUT_DIR
+            cfg["project"] = args.project or "Notebook"
+        else:
+            cfg["project"] = args.project or os.path.basename(root.rstrip(os.sep))
         cfg["forge"] = forge
         with open(cfg_file, "w", encoding="utf-8") as fh:
             json.dump(cfg, fh, indent=2)
             fh.write("\n")
         print("wrote %s (forge: %s)" % (cfg_file, forge["type"]))
-        if forge["type"] == "none":
+        if scope == "home":
+            print("  home wiki: no repository, no forge, so References stay plain text.")
+            print("  The Stop hook only fires inside a repository; use /write-up here.")
+        elif forge["type"] == "none":
             print("  no known forge on remote %r; articles will not link to code."
                   % (remote or "<none>"))
             print("  Fill forge.fileUrl / branchUrl / ticketUrl / prUrl by hand to enable links.")
@@ -324,7 +380,10 @@ def cmd_init(args):
     written = ensure_runtime(wdir)
     print("wiki folder: %s%s" % (wdir, ("  (+%s)" % ", ".join(written)) if written else ""))
 
-    if args.private:
+    if args.private and scope == "home":
+        warn("--private is a no-op for the home wiki: it is outside any repository "
+             "already, so nothing can stage it.")
+    elif args.private:
         exclude = os.path.join(
             git("rev-parse", "--path-format=absolute", "--git-common-dir", cwd=root)
             or os.path.join(root, ".git"),
@@ -347,10 +406,14 @@ def cmd_init(args):
                 print("%s already excluded" % rel)
         except Exception as e:
             warn("could not update .git/info/exclude: %s" % e)
-    else:
+    elif scope == "repo":
         print("wiki is committed with the repo. Use --private to keep it machine-local instead.")
 
-    print("\nNext: finish a branch, then ask Claude to write its write-up (or run /write-up).")
+    if scope == "home":
+        print("\nNext: finish something worth keeping, then ask Claude to write it up "
+              "(or run /write-up). It does not have to be code.")
+    else:
+        print("\nNext: finish a branch, then ask Claude to write its write-up (or run /write-up).")
     return 0
 
 
@@ -408,9 +471,7 @@ def scan_articles(wdir):
 
 
 def cmd_build(args):
-    root = repo_root()
-    if not root and not args.dir:
-        die("not inside a git repository (pass an explicit wiki directory)")
+    root = None if args.dir else resolve_scope()[0]
     cfg = load_config(root) if root else deep_merge(DEFAULTS, {"project": None})
     if root:
         wdir = args.dir or wiki_dir(root, cfg)
@@ -428,7 +489,13 @@ def cmd_build(args):
     items = scan_articles(wdir)
 
     with open(os.path.join(wdir, "manifest.js"), "w", encoding="utf-8") as fh:
-        fh.write("window.WRITEUPS = " + json.dumps(items, ensure_ascii=False) + ";\n")
+        # One article per line, not one long line. Two people adding articles on two
+        # branches both touch this file, and a single multi-kilobyte line makes that an
+        # unmergeable conflict every time. Per-line entries let git merge the common case
+        # by itself, and leave a readable conflict when it cannot.
+        fh.write("window.WRITEUPS = [" + nl_join([
+            json.dumps(it, ensure_ascii=False, sort_keys=True) for it in items
+        ]) + "];\n")
 
     tpl_path = os.path.join(ASSET_DIR, "index-template.html")
     if not os.path.exists(tpl_path):
@@ -755,9 +822,7 @@ def article_prose(txt):
 
 
 def cmd_suggest(args):
-    root = repo_root()
-    if not root:
-        die("not inside a git repository")
+    root = resolve_scope()[0]
     cfg = load_config(root)
     wdir = wiki_dir(root, cfg)
     files = args.article or [
@@ -894,9 +959,7 @@ def cmd_shot(args):
     if not out:
         if not args.slug:
             die("need --slug (or an explicit --out)")
-        root = repo_root()
-        if not root:
-            die("not inside a git repository; pass --out")
+        root = resolve_scope()[0]
         cfg = load_config(root)
         branch = slug_for(args.branch or current_branch() or "work")
         d = os.path.join(wiki_dir(root, cfg), "assets", branch)
@@ -1017,7 +1080,9 @@ def cmd_sweep(args):
     This is the one feature that touches the network, so it lives here in the optional
     CLI and not in the Stop hook. A hook that makes an HTTP call is a hook that hangs.
     """
-    root = repo_root() or die("not in a git repository")
+    # Sweep is about pull requests, so unlike every other command it genuinely needs a
+    # repository and a forge. Say so plainly rather than failing on a missing remote.
+    root = repo_root() or die("sweep needs a git repository: it looks for merged pull requests")
     cfg = load_config(root)
     wdir = wiki_dir(root, cfg)
     if not os.path.isdir(wdir):
@@ -1070,11 +1135,14 @@ def cmd_doctor(args):
     print("  ..   python       %s (optional: build, digest, suggest, shot)"
           % sys.version.split()[0])
 
-    print("\nrepo")
-    root = repo_root()
-    check("inside a git repository", bool(root), root or "")
-    if not root:
-        return 1
+    root, scope = resolve_scope()
+    print("\n%s" % ("repo" if scope == "repo" else "home wiki"))
+    if scope == "repo":
+        check("inside a git repository", True, root)
+    else:
+        check("home wiki", True, root)
+        print("  ..   note         no repository here, so the Stop hook stays silent;"
+              " use /write-up")
     cfg_file = config_path(root)
     check(CONFIG_NAME, os.path.exists(cfg_file), cfg_file if os.path.exists(cfg_file)
           else "run: writeup.py init")
@@ -1089,6 +1157,11 @@ def cmd_doctor(args):
     print("  ..   articles     %d" % (len(scan_articles(wdir)) if os.path.isdir(wdir) else 0))
 
     print("\nhook")
+    if scope == "home":
+        check("Stop hook", True, "not applicable outside a repository")
+        print("\n%s" % ("all good" if ok else "some checks failed (see above)"))
+        return 0 if ok else 1
+
     # Installed as a plugin, the hook ships in hooks/hooks.json and Claude Code wires
     # it on enable, so there is nothing in settings.json to find. Check that first or
     # every plugin user sees a false failure here.
@@ -1129,6 +1202,9 @@ def build_parser():
     i.add_argument("--project", help="wordmark shown on the wiki (default: repo folder name)")
     i.add_argument("--private", action="store_true",
                    help="keep the wiki machine-local via .git/info/exclude")
+    i.add_argument("--home", action="store_true",
+                   help="set up the home wiki (~/%s) for work that is not in a repo"
+                        % HOME_OUTPUT_DIR)
     i.add_argument("--force", action="store_true", help="overwrite an existing config")
     i.set_defaults(func=cmd_init)
 

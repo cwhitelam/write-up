@@ -52,7 +52,7 @@ to install Python; every job here has a path that does not need it.
 
 | Command | What it does | If Python is absent |
 |---|---|---|
-| `init` | Write `.write-up.json`, create the wiki folder, install the runtime JS. Once per repo. | Read `git remote -v`, write the config yourself (shape below), and copy `write-up-ui.js` and `glossary.seed.js` from `<skill-dir>/assets/` into the wiki folder, naming the second one `glossary.js`. |
+| `init` | Write `.write-up.json`, create the wiki folder, install the runtime JS. Once per repo, or `--home` for the repo-less wiki at `~/.claude/write-ups`. | Read `git remote -v`, write the config yourself (shape below), and copy `write-up-ui.js` and `glossary.seed.js` from `<skill-dir>/assets/` into the wiki folder, naming the second one `glossary.js`. |
 | `build` | Rebuild `index.html` + `manifest.js` from every article on disk. | Not needed. Step 8 has you update both directly, one entry each. Use `build` only to repair a wiki that has drifted. |
 | `digest` | Replay past Claude sessions for this repo as one chronological digest. `--list` indexes every session (id, date, message count, opening line); `--session <id>`, `--branch <b>`, `--since <date>`, `--grep <text>`, `--all` scope it. | Read the `.jsonl` transcripts under `~/.claude/projects/<encoded-cwd>/` with Grep and Read. Slower and costlier, so scope it tightly. |
 | `suggest [article]` | Propose glossary candidates from an article's prose. | Skip it. You already know which terms in your own prose are non-obvious. |
@@ -332,7 +332,12 @@ patch that article:
 
 ## Where the wiki lives
 
-`writeup.py init` sets this up one of two ways, and the choice is the user's:
+There are three placements. The first two are inside a repository and the choice is the
+user's; the third is what you get when there is no repository at all.
+
+**Resolve it before writing anything.** Read `.write-up.json` at the repo root; if there
+is no repo or no config there, read `~/.write-up.json`. An initialised repo always wins,
+so a project's wiki is never bypassed by accident.
 
 - **Committed (default)**: `<outputDir>/` is tracked, so articles travel with the repo and
   the wiki is team content. `index.html` and `manifest.js` are generated, so they belong in
@@ -344,3 +349,16 @@ patch that article:
   worktree only ever holds its own branch's article: to gather everything on one front page,
   copy the worktree's `<branch>.html` and its `assets/<branch>/` into the main checkout's
   wiki folder, then add its manifest and index entries there (step 8).
+- **Home** (`init --home`, or `init` run anywhere outside a repo): the config is
+  `~/.write-up.json` and articles go to `~/.claude/write-ups/`, under the wordmark
+  **Notebook**. This is for work that is not a branch and may not be code at all:
+  research that reached an answer, a data investigation, a decision argued out over one
+  session, a thing you figured out and do not want to figure out twice. The six sections
+  are unchanged. `forge.type` is `none`, so References stay plain text and nothing links
+  to code. Drop the Ticket, Branch and PR infobox rows and use **Kind** and **Location**
+  instead, exactly as for branchless work in a repo.
+
+  **No Stop hook fires here.** Its trigger is branch state, so outside a repository there
+  is no automatic prompt and the user must ask. If someone in a repo-less directory
+  finishes something worth keeping, it is worth saying so once, then writing it if they
+  agree. Do not nag.
