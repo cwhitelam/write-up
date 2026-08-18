@@ -13,7 +13,7 @@
   - Replace every {{TOKEN}}; repeat .hl blocks, list items, .dec decisions, .day journal entries, refs.
   - Sections in order: lead, Why / What / How / Decisions / Day by day / Highlights
     (+ optional Open / See also) / References. Keep TOC in sync (drop Open if absent).
-    Decisions + Day by day are New-mode sections; write-up-ui.js hides them in Old mode.
+    write-up-ui.js styles Decisions and Day by day automatically; nothing to configure.
   - Code in .hl blocks is VERBATIM from the repo, trimmed to the load-bearing
     lines. HTML-escape < > & inside <code>.
   - Each highlight's source file is a numbered reference: sup cite in the caption
@@ -157,8 +157,8 @@
     <a href="#why">Why</a>
     <a href="#what">What</a>
     <a href="#how">How</a>
-    <a href="#decisions" class="toc-new">Decisions</a>
-    <a href="#journal" class="toc-new">Day by day</a>
+    <a href="#decisions">Decisions</a>
+    <a href="#journal">Day by day</a>
     <a href="#highlights">Highlights</a>
     <a href="#open">Open</a><!-- drop when no Open section -->
     <a href="#see-also">See also</a><!-- drop when no See also section -->
@@ -185,7 +185,7 @@
         <dt>Author</dt><dd>{{AUTHOR: code author, git commit author on the branch}}</dd>
         <dt>Reviewer</dt><dd>{{REVIEWER: who approved the pull request}}</dd>
         <dt>Branch</dt><dd><a href="{{BRANCH_URL}}"><code>{{BRANCH}}</code></a></dd>
-        <dt>Status</dt><dd>{{Mid-flight | Shipped | Merged | In use}}</dd>
+        <dt>Status</dt><dd>{{Mid-flight | Shipped | Merged | In use | Concluded | Unresolved | Abandoned}}</dd>
         <dt>Surface</dt><dd><code>{{route / command / location}}</code></dd>
         <dt>PR</dt><dd>{{link once it exists; omit row until then}}</dd>
         <dt>Documented</dt><dd>{{DATE}}</dd>

@@ -114,7 +114,9 @@ outside any repo, several days of small changes straight on `main`. In that case
   an encyclopedia entry, not a commit message.
 - **Drop the Ticket and Branch infobox rows** and use **Kind** (Spike / Investigation /
   Tool / Refactor) and **Location** (where the work lives) instead.
-- **Status** still applies: Mid-flight, Shipped, Merged, In use, or Abandoned. An abandoned
+- **Status** still applies: Mid-flight, Shipped, Merged, In use, Concluded (investigated,
+  decided against), Unresolved (still open), or Abandoned. The front page derives its
+  filter chips from whatever statuses exist, so a new value needs no code change. An abandoned
   spike with an honest Why and a clear Decisions log is one of the more useful articles a
   wiki can hold, because it stops the same idea being re-explored next quarter.
 - Everything else is unchanged. Highlights still quote real code, References still cite
@@ -128,21 +130,21 @@ citations. Flow, in order:
 
 | Part | Content |
 |---|---|
-| **Byline, title, infobox, lead** | "Documented by Claude, date" line, serif title, then the right-floated infobox: the finished-feature image (when one exists) over a facts grid. **Include only the rows that apply.** Candidates: Ticket (`forge.ticketUrl`, only if the project uses issues), **Author** (who WROTE THE CODE, the git commit author, `git log <base>..HEAD --format=%an \| sort -u`, NOT whoever requested it), **Reviewer** (who approved the pull request), Branch (`forge.branchUrl`), Status, Surface (the route, command, or entry point), PR, Documented. Branchless work uses Kind and Location instead of Ticket and Branch. Then a 2 to 4 sentence encyclopedia lead. |
+| **Byline, title, infobox, lead** | "Documented by Claude, date" line, serif title, then the right-floated infobox: the finished-feature image (when one exists) over a facts grid. **Include only the rows that apply.** Candidates: Ticket (`forge.ticketUrl`, only if the project uses issues), **Author** (who WROTE THE CODE, the git commit author, `git log <base>..HEAD --format=%an \| sort -u`, NOT whoever requested it), **Reviewer** (who approved the pull request), Branch (`forge.branchUrl`), Status, Surface (the route, command, or entry point), PR, Documented. Branchless work uses Kind and Location instead of Ticket and Branch. Then a 2 to 4 sentence encyclopedia lead. **When the work did not resolve, or resolved as "do not build this", the lead must say so outright and point at the section that carries the payload** (usually Open). The section order never changes, so the lead is the only thing standing between a reader and the wrong conclusion. |
 | **Why** | The problem that started it. 2 to 4 plain sentences: what hurt, what was asked, what made it worth doing. |
 | **What** | What exists now that did not before. Tight bullets: commands, surfaces, behavior. |
 | **How** | The path in order, one or two lines per step. Real trade-offs written inline as "chose X over Y because Z" so roads-not-taken survive. |
-| **Decisions** | The load-bearing choices as an ADR log, one `.dec` each: the decision, a `<small>` date, one line of why and the trade-off. Same reasoning as How, extracted for scanning. Keep it to the choices that mattered; do not restate How verbatim. |
+| **Decisions** | The load-bearing choices as an ADR log, one `.dec` each: the decision, a `<small>` date, one line of why and the trade-off. Same reasoning as How, extracted for scanning. Keep it to the choices that mattered; do not restate How verbatim. **A decision that reverses an earlier one must say so in its first clause** ("Supersedes the decision above: ..."), because a plain chronological list gives the reader no way to tell which entry is still in force. |
 | **Day by day** | A dated journal, one `.day` per working day, oldest first: date, short title, bullets of what got done. Build it from `git log --date=short` grouped by day plus the session digest. Each entry carries `data-day="YYYY-MM-DD"`, which is how the hook knows today is already logged. |
-| **Highlights** | The load-bearing code. Each showcase is a one-line plain-english caption on why this snippet is the trick, a superscript cite `[n]`, and the code verbatim, trimmed to the essential lines. |
+| **Highlights** | The load-bearing artifact, verbatim. Usually the code that made it work; for an investigation or a spike it is the evidence that carried the finding instead, which is equally quotable: the benchmark, the query plan, the log line, the instrumentation. Each showcase is a one-line plain-english caption on why this snippet is the trick, a superscript cite `[n]`, and the snippet trimmed to the essential lines. Work that shipped no code is not exempt; it just quotes different code. |
 | **Open** | Caveats, estimates, deferred work. Omit the section and its TOC entry when there are none. |
 | **See also** | Genuinely related articles, one clause each on the relation. Omit when none. Whenever prose anywhere mentions another article that exists, LINK it: cross-article links are what make this a wiki. |
 | **References** | Numbered list of the highlight source files (`id="ref-n"`, repo-relative path plus one clause on what it holds). Files tracked in the repo link via `forge.fileUrl`; untracked or gitignored files stay unlinked. Cite from captions and How steps. |
 
-Every article ships a persistent **Old / New reading toggle** (bottom bar, remembered per
-reader via `write-up-ui.js`). **Old** is the article as authored, static, with Decisions
-and Day by day hidden. **New** adds the motion layer plus those two sections. Always author
-the full article including both; the toggle and the Old-mode hiding are automatic.
+`write-up-ui.js` adds the presentation layer to every article automatically: scroll
+reveals, link underlines, and the styling for the Decisions and Day-by-day sections.
+Nothing per-article to configure. Author the full article and the runtime handles the
+rest.
 
 ## Hard rules
 

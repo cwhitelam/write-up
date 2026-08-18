@@ -1,0 +1,17 @@
+{
+  "name": "write-up",
+  "owner": {
+    "name": "Christopher Whitelam"
+  },
+  "description": "Write-up: turn finished work into a self-contained HTML wiki that records why, not just what changed.",
+  "plugins": [
+    {
+      "name": "write-up",
+      "source": "./plugin",
+      "description": "Writes the story of finished work as a self-contained HTML wiki. Git records what changed; this records why.",
+      "version": "1.0.0",
+      "license": "MIT",
+      "homepage": "https://cwhitelam.github.io/write-up/"
+    }
+  ]
+}

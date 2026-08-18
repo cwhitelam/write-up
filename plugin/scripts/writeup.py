@@ -1076,6 +1076,16 @@ def cmd_doctor(args):
     print("  ..   articles     %d" % (len(scan_articles(wdir)) if os.path.isdir(wdir) else 0))
 
     print("\nhook")
+    # Installed as a plugin, the hook ships in hooks/hooks.json and Claude Code wires
+    # it on enable, so there is nothing in settings.json to find. Check that first or
+    # every plugin user sees a false failure here.
+    as_plugin = (os.path.exists(os.path.join(SKILL_DIR, ".claude-plugin", "plugin.json"))
+                 and os.path.exists(os.path.join(SKILL_DIR, "hooks", "hooks.json")))
+    if as_plugin:
+        check("Stop hook wired", True, "by the plugin (hooks/hooks.json)")
+        print("\n%s" % ("all good" if ok else "some checks failed (see above)"))
+        return 0 if ok else 1
+
     found = []
     for p in (
         os.path.join(root, ".claude", "settings.json"),

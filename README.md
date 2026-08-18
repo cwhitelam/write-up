@@ -1,8 +1,12 @@
 # Write-up
 
-A skill for [Claude Code](https://claude.com/claude-code) that writes the story of a
-finished piece of work as a self-contained HTML article, and accumulates those articles
-into a small local wiki.
+Writes the story of a finished piece of work as a self-contained HTML article, and
+accumulates those articles into a small local wiki.
+
+It ships as a [Claude Code](https://claude.com/claude-code) skill because that is what it
+was built in, but the format and most of the tooling are agent-agnostic. Three files are
+Claude-specific and each has an obvious substitute: see
+[using it with another agent](#using-it-with-another-agent).
 
 Git records what changed. Write-up records **why**, while the reasoning is still in the
 session and still cheap to capture. A week later it is gone, and six months later the only
@@ -45,17 +49,33 @@ code block.
 
 ## Install
 
-Requires git. Nothing else.
+Two commands inside Claude Code:
+
+```
+/plugin marketplace add cwhitelam/write-up
+/plugin install write-up@write-up
+```
+
+That installs the skill and wires the Stop hook. Nothing to clone, nothing to paste into
+`settings.json`. If the install summary says `Run /reload-plugins to activate`, run it.
+Remove it later with `/plugin uninstall write-up@write-up`.
+
+<details>
+<summary>Installing without the plugin system</summary>
+
+For an older Claude Code, another agent, or a copy you want to edit in place:
 
 ```bash
 git clone https://github.com/cwhitelam/write-up.git
 cd write-up
-./install.sh                    # installs to ~/.claude/skills/write-up
+./install.sh                    # copies to ~/.claude/skills/write-up
 ```
 
-That copies the skill and prints the Stop hook snippet to paste into
-`~/.claude/settings.json`. Add `--project` to install into one repo instead of your home
-directory, and `--uninstall` to remove it.
+That prints the Stop hook snippet to paste into `~/.claude/settings.json`, since a
+sed-merge into a config you care about is a bad trade for the twenty seconds it saves.
+`--project` installs into one repo instead of your home directory, `--uninstall` removes it.
+
+</details>
 
 Then, in each repo you want documented, ask Claude:
 
@@ -85,6 +105,24 @@ Bash on Windows, so a shell script needs nothing installed anywhere. Python is n
 position. macOS has shipped no bundled Python 3 since 12.3, where `python3` is a stub that
 triggers an Xcode Command Line Tools prompt, and Windows ships none at all. Making the
 required half `sh` is what lets this be a clone-and-go install.
+
+## Using it with another agent
+
+Three things assume Claude Code. Everything else does not.
+
+| Claude Code piece | What it does | Substitute |
+|---|---|---|
+| `plugin/SKILL.md` | The authoring rules, in Claude Code's skill format, invoked as `/write-up` | Only the frontmatter is Claude-specific. Paste the body into `AGENTS.md`, a Cursor rule, a system prompt, or whatever your agent reads. |
+| `plugin/hooks/write-up-hook.sh` | Asks for an article when a branch looks finished. Reads Claude Code's hook payload on stdin and replies with its JSON block contract | The gate itself is plain git and plain `sh`, and it always exits 0. Drive it from a git alias, a CI step, or your agent's end-of-turn hook, and treat non-empty stdout as a request; the `reason` field is the prompt to hand your model. |
+| `writeup.py digest` | Replays past sessions from `~/.claude/projects/*.jsonl` | Point it at your agent's transcript directory, or skip the command. |
+
+Portable with no changes at all: both HTML templates, the wiki runtime
+(`write-up-ui.js`, `glossary.js`), and `writeup.py init|build|suggest|shot|sweep|doctor`.
+The six-section structure is prose instructions, so it transplants as-is.
+
+The honest summary is that this is an article format plus a small static wiki, with a
+Claude Code integration attached. If you use something else, you keep the format and
+rewire one hook.
 
 ## Use
 

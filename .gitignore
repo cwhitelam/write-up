@@ -11,3 +11,6 @@ Thumbs.db
 # two, plus .sweep-stamp and .skip-*, since they rebuild from the articles.
 /docs/.sweep-stamp
 /docs/.skip-*
+
+# Scratchpad for the marketplace submission form, not repo content.
+/SUBMISSION.md

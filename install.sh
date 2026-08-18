@@ -47,11 +47,11 @@ if [ "$MODE" = "uninstall" ]; then
   exit 0
 fi
 
-[ -d "$SRC/skill" ] || { echo "run this from the write-up checkout (no skill/ next to $0)" >&2; exit 1; }
+[ -d "$SRC/plugin" ] || { echo "run this from the write-up checkout (no plugin/ next to $0)" >&2; exit 1; }
 
 mkdir -p "$(dirname -- "$DEST")"
 rm -rf "$DEST"
-cp -R "$SRC/skill" "$DEST"
+cp -R "$SRC/plugin" "$DEST"
 chmod +x "$DEST/hooks/write-up-hook.sh" 2>/dev/null || true
 
 echo "installed to $DEST"

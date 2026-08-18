@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='25' x='16' text-anchor='middle' font-family='Georgia,serif' font-size='25' font-weight='600' fill='%23888'>W</text></svg>">
 <title>Write-up</title>
-<meta name="description" content="A Claude Code skill that writes the story of finished work as a self-contained HTML wiki. Git records what changed; this records why.">
+<meta name="description" content="Writes the story of finished work as a self-contained HTML wiki. Git records what changed; this records why. Ships as a Claude Code skill; the format works with any agent.">
 <meta property="og:title" content="Write-up">
 <meta property="og:description" content="Git records what changed. Write-up records why.">
 <meta property="og:type" content="website">
@@ -68,6 +68,7 @@
   .hero h1 span{display:block;}
   .hero h1 .q{color:var(--muted);}
   .hero p.lede{color:var(--sup);font-size:17px;line-height:1.75;max-width:56ch;margin:22px auto 0;}
+  .hero p.sub-note{font-size:14.5px;color:var(--muted);margin-top:12px;}
   .cta{display:flex;gap:12px;justify-content:center;margin-top:34px;flex-wrap:wrap;}
   .btn{display:inline-block;font-size:14.5px;font-weight:500;text-decoration:none;
     padding:11px 22px;border-radius:9px;border:1px solid var(--rule);transition:opacity .15s;}
@@ -85,15 +86,15 @@
     border:1px solid var(--pre-bd);}
   .frame .bar span{flex:1;text-align:center;font-family:var(--mono);font-size:11px;
     color:var(--muted);margin-right:44px;}
-  .shot-light{display:none;}
-  @media (prefers-color-scheme:light){
-    :root:not([data-theme="dark"]) .shot-dark{display:none;}
-    :root:not([data-theme="dark"]) .shot-light{display:block;}
-  }
-  :root[data-theme="light"] .shot-dark{display:none;}
-  :root[data-theme="light"] .shot-light{display:block;}
-  :root[data-theme="dark"] .shot-dark{display:block;}
-  :root[data-theme="dark"] .shot-light{display:none;}
+  /* The shot is the live article in an iframe, not a JPEG. A raster capture is soft the
+     moment the container is not its native width, and it goes stale the moment the design
+     changes. This is sharp at any zoom, follows the theme by itself, and cannot
+     misrepresent the product because it IS the product.
+     No transform either: scaling a wide render down to fit rasterizes the whole layer and
+     turns small text to mush, which is the same thing a downscaled screenshot gets wrong.
+     The article lays itself out at the frame's real width, so every glyph is native. */
+  .stage{position:relative;width:100%;height:560px;overflow:hidden;}
+  .stage iframe{width:100%;height:100%;border:0;display:block;pointer-events:none;}
   .caption{text-align:center;color:var(--muted);font-size:13px;margin-top:14px;}
   .caption a{color:inherit;}
 
@@ -161,10 +162,11 @@
   <div class="hero">
     <span class="pill">git and a shell &middot; nothing to install &middot; MIT</span>
     <h1><span>Git records what changed.</span><span class="q">Write-up records why.</span></h1>
-    <p class="lede">A skill for Claude Code that turns a finished piece of work into a
-      self-contained HTML article, and those articles into a small local wiki. The reasoning
-      is complete for about an hour after the work is done. This catches it while it is
-      still there.</p>
+    <p class="lede">Turns a finished piece of work into a self-contained HTML article, and
+      those articles into a small local wiki. The reasoning is complete for about an hour
+      after the work is done. This catches it while it is still there.</p>
+    <p class="lede sub-note">Ships as a Claude Code skill. The format and the tooling work
+      with any agent.</p>
     <div class="cta">
       <a class="btn primary" href="wiki/write-up.html">Read a real one &rarr;</a>
       <a class="btn ghost" href="#install">Install</a>
@@ -172,13 +174,14 @@
 
     <div class="frame">
       <div class="bar"><i></i><i></i><i></i><span>wiki/write-up.html</span></div>
-      <img class="shot-dark" src="assets/article-dark.jpg" width="1200" height="1021"
-           alt="A Write-up article: title, infobox, and the Why and What sections">
-      <img class="shot-light" src="assets/article-light.jpg" width="1200" height="1021"
-           alt="A Write-up article in light mode">
+      <div class="stage">
+        <iframe src="wiki/write-up.html" title="A live Write-up article"
+                loading="lazy" scrolling="no" tabindex="-1" aria-hidden="true"></iframe>
+      </div>
     </div>
-    <p class="caption">Not a mockup. That is
-      <a href="wiki/write-up.html">a live page in this repo</a>, written by the tool about itself.</p>
+    <p class="caption">Not a screenshot. That frame is
+      <a href="wiki/write-up.html">the live article</a>, rendering right now, written by the
+      tool about itself.</p>
   </div>
 
   <section id="features">
@@ -227,11 +230,11 @@
 
   <section id="install">
     <p class="eyebrow">Install</p>
-    <h2>Clone it and go.</h2>
+    <h2>Two commands.</h2>
     <div class="install">
-<pre>git clone https://github.com/cwhitelam/write-up.git
-cd write-up
-./install.sh</pre>
+<pre>/plugin marketplace add cwhitelam/write-up
+/plugin install write-up@write-up
+<span class="c"># installs the skill and wires the Stop hook. No clone, no config editing.</span></pre>
       <p class="note">Then, in any repo you want documented, ask Claude:</p>
 <pre>/write-up setup
 <span class="c"># reads your git remote, writes .write-up.json with the right link patterns</span></pre>

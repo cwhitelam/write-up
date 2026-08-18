@@ -1,0 +1,11 @@
+{
+  "name": "write-up",
+  "description": "Writes the story of a finished piece of work as a self-contained HTML article, and accumulates those articles into a small local wiki. Git records what changed; this records why.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Christopher Whitelam"
+  },
+  "homepage": "https://cwhitelam.github.io/write-up/",
+  "repository": "https://github.com/cwhitelam/write-up",
+  "license": "MIT"
+}

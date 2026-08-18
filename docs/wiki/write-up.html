@@ -140,8 +140,8 @@
     <a href="#why">Why</a>
     <a href="#what">What</a>
     <a href="#how">How</a>
-    <a href="#decisions" class="toc-new">Decisions</a>
-    <a href="#journal" class="toc-new">Day by day</a>
+    <a href="#decisions">Decisions</a>
+    <a href="#journal">Day by day</a>
     <a href="#highlights">Highlights</a>
     <a href="#open">Open</a>
     <a href="#references">References</a>
@@ -283,7 +283,7 @@ forge.update(
 
     <section id="open">
       <h2>Open</h2>
-      <p>Window-targeted screenshots work on Windows only; every other platform gets full-screen capture, and web pages are better captured with the browser tools anyway. The merge sweep supports GitHub (through the <code>gh</code> CLI) and Azure DevOps (through a personal access token) and is off by default, so nothing reaches the network unless it is switched on. The macOS and Linux capture fallbacks are written against the standard tools but have not been exercised on those platforms.</p>
+      <p>Window-targeted screenshots work on Windows only; every other platform gets full-screen capture, and web pages are better captured with the browser tools anyway. Closing an article out after its pull request merges is a separate opt-in command, <code>writeup.py sweep</code>, supporting GitHub through the <code>gh</code> CLI and Azure DevOps through a personal access token. It is the only part of the tool that makes a network call, it never runs on its own, and the Stop hook never touches the network. The macOS and Linux capture fallbacks are written against the standard tools but have not been exercised on those platforms.</p>
     </section>
 
     <section id="references">

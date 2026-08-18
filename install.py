@@ -17,7 +17,7 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.join(HERE, "skill")
+SRC = os.path.join(HERE, "plugin")
 
 
 def user_scope():
