@@ -1,9 +1,9 @@
 {
-  "name": "write-up",
+  "name": "cwhitelam",
   "owner": {
     "name": "Christopher Whitelam"
   },
-  "description": "Write-up: turn finished work into a self-contained HTML wiki that records why, not just what changed.",
+  "description": "Plugins by Christopher Whitelam. Write-up turns finished work into a self-contained HTML wiki that records why, not just what changed.",
   "plugins": [
     {
       "name": "write-up",

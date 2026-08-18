@@ -53,7 +53,7 @@ Two commands inside Claude Code:
 
 ```
 /plugin marketplace add cwhitelam/write-up
-/plugin install write-up@write-up
+/plugin install write-up@cwhitelam
 ```
 
 That installs the skill and wires the Stop hook. Nothing to clone, nothing to paste into
@@ -272,7 +272,7 @@ have not been exercised on those platforms.
 ## Uninstall
 
 ```
-/plugin uninstall write-up@write-up
+/plugin uninstall write-up@cwhitelam
 ```
 
 Your wiki, your `.write-up.json` and your glossary are left alone.
