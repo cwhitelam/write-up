@@ -24,6 +24,19 @@ import subprocess
 import sys
 import time
 
+# Windows consoles default to the legacy code page (cp1252 on US installs) and Linux
+# under LANG=C defaults to ascii, so printing anything the user wrote raises
+# UnicodeEncodeError. Nothing in this file is non-ASCII; the text comes from the
+# repository and from Claude transcripts, where an arrow or a smart quote is routine.
+# reconfigure() has existed since 3.7 and the floor here is 3.8, but stdout is not
+# always a TextIOWrapper (harnesses replace it), so the capability is checked.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 SKILL_DIR = os.path.dirname(SCRIPT_DIR)
 ASSET_DIR = os.path.join(SKILL_DIR, "assets")
