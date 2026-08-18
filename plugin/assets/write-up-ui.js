@@ -29,7 +29,8 @@ article a:hover{background-size:100% 1px;}
 }
 /* Embedded in an iframe nobody scrolls (a preview, a print pipeline), the reveal never
    fires and the article sits at low opacity forever. Show everything immediately. */
-html.bp-framed .bp-rv,html.bp-framed .infobox img{
+html.bp-framed .bp-rv,html.bp-framed .infobox img,
+html.bp-static .bp-rv,html.bp-static .infobox img{
   opacity:1!important;transform:none!important;clip-path:none!important;transition:none!important;}
 
 /* ===== Decisions (ADR log) ===== */
@@ -61,14 +62,28 @@ html.bp-framed .bp-rv,html.bp-framed .infobox img{
     var items = [].slice.call(document.querySelectorAll(sel));
     items.forEach(function (el) { el.classList.add('bp-rv'); });
 
-    if ('IntersectionObserver' in window) {
-      var io = new IntersectionObserver(function (es, o) {
-        es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('bp-in'); o.unobserve(e.target); } });
-      }, { rootMargin: '0px 0px -10% 0px', threshold: 0.1 });
-      items.forEach(function (el) { io.observe(el); });
-    } else {
+    function revealAll() {
+      // bp-static, not just bp-in: bp-in animates up from opacity 0, and an environment
+      // that starved the observer of frames will starve the transition too. This sets the
+      // finished state outright, so the article is readable either way.
+      document.documentElement.classList.add('bp-static');
       items.forEach(function (el) { el.classList.add('bp-in'); });
     }
+
+    if (!('IntersectionObserver' in window)) { revealAll(); return; }
+
+    var io = new IntersectionObserver(function (es, o) {
+      es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('bp-in'); o.unobserve(e.target); } });
+    }, { rootMargin: '0px 0px -10% 0px', threshold: 0.1 });
+    items.forEach(function (el) { io.observe(el); });
+
+    // Fail open. The reveal starts every element at opacity 0, so if the observer never
+    // delivers (a throttled or occluded tab, a prerender, a browser that suspends
+    // callbacks) the whole article stays invisible. An unanimated page is a far better
+    // failure than an unreadable one, and this is a document format first.
+    setTimeout(function () {
+      if (!document.querySelector('.bp-rv.bp-in')) { io.disconnect(); revealAll(); }
+    }, 1200);
   }
 
   if (document.readyState === 'loading') addEventListener('DOMContentLoaded', run); else run();

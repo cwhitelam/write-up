@@ -191,6 +191,7 @@ Command Line Tools prompt, and Windows ships none at all.
 | `init` | Write `.write-up.json`, create the wiki folder, install the runtime JS. `--home` for the repo-less wiki. |
 | `build` | Rebuild `index.html` + `manifest.js` from every article on disk. Repair tool; the skill keeps them in step as it writes. |
 | `digest` | Replay past Claude sessions. `--list` indexes every session; `--session`, `--branch`, `--since`, `--grep`, `--all` scope it. |
+| `hooks/write-up-digest.sh` | The same replay in POSIX sh, for scheduled capture with no Python at all. `--since`, `--session`, `--all`, `--projects`. Skips `/compact` and compaction summaries, which the Python one keeps. |
 | `suggest` | Propose glossary candidates from an article's prose. |
 | `shot` | Capture a screenshot into the article's assets folder. |
 | `sweep` | List Mid-flight articles whose pull request has merged. The only command that makes a network call. |
