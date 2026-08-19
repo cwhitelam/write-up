@@ -53,8 +53,34 @@ html.bp-static .bp-rv,html.bp-static .infobox img{
 .day ul{margin:0;padding-left:20px;} .day li{margin:5px 0;font-size:15px;color:var(--sup);}
 `;
 
+  // Every .day already carries an ISO data-day, because the Stop hook greps for it.
+  // The human label next to it was free text the model typed, and models get weekdays
+  // wrong: three of the first four entries ever written were off by exactly one day.
+  // Derive the label from the date that is already correct, so it cannot disagree.
+  var DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  var MONS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+              'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  function stampDates() {
+    var days = document.querySelectorAll('.day[data-day]');
+    for (var i = 0; i < days.length; i++) {
+      var iso = days[i].getAttribute('data-day') || '';
+      var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+      if (!m) continue;
+      // Construct in UTC and read in UTC: a local-time Date shifts the day for anyone
+      // west of Greenwich, which would reintroduce the very off-by-one being fixed.
+      var d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+      if (isNaN(d.getTime())) continue;
+      var label = days[i].querySelector('.date');
+      if (!label) continue;
+      label.textContent = DAYS[d.getUTCDay()] + ' \u00b7 ' +
+        MONS[d.getUTCMonth()] + ' ' + d.getUTCDate();
+    }
+  }
   function run() {
     var s = document.createElement('style'); s.textContent = CSS; document.head.appendChild(s);
+
+    stampDates();
 
     // reveal targets (no per-article markup needed)
     var sel = 'article > p, article > h1, .infobox, article section > h2, article section > p,' +

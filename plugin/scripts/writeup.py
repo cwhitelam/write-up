@@ -356,6 +356,14 @@ def cmd_init(args):
             root, scope = home_root(), "home"
             warn("no git repository here, setting up the home wiki instead "
                  "(%s). Use --home to ask for this explicitly." % HOME_OUTPUT_DIR)
+        else:
+            # A worktree's root is not the repository's root. Config written there
+            # vanishes with the worktree and is invisible to every other checkout.
+            main = main_checkout(root)
+            if main and os.path.normpath(main) != os.path.normpath(root):
+                warn("this is a worktree; the config and wiki belong to the main "
+                     "checkout at %s" % main)
+                root = main
     cfg_file = config_path(root)
     if os.path.exists(cfg_file) and not args.force:
         print("%s already exists (use --force to overwrite)" % CONFIG_NAME)
@@ -374,7 +382,7 @@ def cmd_init(args):
         else:
             cfg["project"] = args.project or os.path.basename(root.rstrip(os.sep))
         cfg["forge"] = forge
-        with open(cfg_file, "w", encoding="utf-8") as fh:
+        with open(cfg_file, "w", encoding="utf-8", newline="\n") as fh:
             json.dump(cfg, fh, indent=2)
             fh.write("\n")
         print("wrote %s (forge: %s)" % (cfg_file, forge["type"]))
@@ -498,7 +506,7 @@ def cmd_build(args):
     restored = ensure_runtime(wdir)
     items = scan_articles(wdir)
 
-    with open(os.path.join(wdir, "manifest.js"), "w", encoding="utf-8") as fh:
+    with open(os.path.join(wdir, "manifest.js"), "w", encoding="utf-8", newline="\n") as fh:
         # One article per line, not one long line. Two people adding articles on two
         # branches both touch this file, and a single multi-kilobyte line makes that an
         # unmergeable conflict every time. Per-line entries let git merge the common case
@@ -565,7 +573,7 @@ def cmd_build(args):
         flags=re.S,
         count=1,
     )
-    with open(idx_path, "w", encoding="utf-8") as fh:
+    with open(idx_path, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(out)
     print(
         'wrote manifest.js + index.html (%d article%s, project="%s")%s'

@@ -135,7 +135,7 @@ citations. Flow, in order:
 | **What** | What exists now that did not before. Tight bullets: commands, surfaces, behavior. |
 | **How** | The path in order, one or two lines per step. Real trade-offs written inline as "chose X over Y because Z" so roads-not-taken survive. |
 | **Decisions** | The load-bearing choices as an ADR log, one `.dec` each: the decision, a `<small>` date, one line of why and the trade-off. Same reasoning as How, extracted for scanning. Keep it to the choices that mattered; do not restate How verbatim. **A decision that reverses an earlier one must say so in its first clause** ("Supersedes the decision above: ..."), because a plain chronological list gives the reader no way to tell which entry is still in force. |
-| **Day by day** | A dated journal, one `.day` per working day, oldest first: date, short title, bullets of what got done. Build it from `git log --date=short` grouped by day plus the session digest. Each entry carries `data-day="YYYY-MM-DD"`, which is how the hook knows today is already logged. |
+| **Day by day** | A dated journal, one `.day` per working day, oldest first: date, short title, bullets of what got done. Build it from `git log --date=short` grouped by day plus the session digest. Each entry carries `data-day="YYYY-MM-DD"`, which is how the hook knows today is already logged. **Leave the `.date` div empty.** The runtime derives the weekday label from `data-day`; typing one yourself is how three of the first four entries ever written ended up off by exactly one day. |
 | **Highlights** | The load-bearing artifact, verbatim. Usually the code that made it work; for an investigation or a spike it is the evidence that carried the finding instead, which is equally quotable: the benchmark, the query plan, the log line, the instrumentation. Each showcase is a one-line plain-english caption on why this snippet is the trick, a superscript cite `[n]`, and the snippet trimmed to the essential lines. Work that shipped no code is not exempt; it just quotes different code. |
 | **Open** | Caveats, estimates, deferred work. Omit the section and its TOC entry when there are none. |
 | **See also** | Genuinely related articles, one clause each on the relation. Omit when none. Whenever prose anywhere mentions another article that exists, LINK it: cross-article links are what make this a wiki. |
@@ -345,10 +345,9 @@ so a project's wiki is never bypassed by accident.
 - **Machine-local** (`init --private`): `<outputDir>/` goes in `.git/info/exclude`, which
   lives in the shared common git dir and so covers the main checkout and every worktree at
   once. Nothing is ever staged or committed, nothing merges, so nothing can conflict. The
-  main checkout is the single canonical wiki. Because articles do not travel through git, a
-  worktree only ever holds its own branch's article: to gather everything on one front page,
-  copy the worktree's `<branch>.html` and its `assets/<branch>/` into the main checkout's
-  wiki folder, then add its manifest and index entries there (step 8).
+  main checkout is the single canonical wiki. The hook and the CLI resolve the wiki
+  through git's common directory, so an article written from a worktree lands in the
+  main checkout's wiki directly; nothing is ever copied back.
 - **Home** (`init --home`, or `init` run anywhere outside a repo): the config is
   `~/.write-up.json` and articles go to `~/.claude/write-ups/`, under the wordmark
   **Notebook**. This is for work that is not a branch and may not be code at all:

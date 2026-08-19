@@ -229,9 +229,11 @@
            by day, plus the session digest. One .day per working day, oldest first.
            data-day is REQUIRED and must be ISO YYYY-MM-DD: the Stop hook greps for it to decide
            whether today is already logged. Omit it and the hook cannot see the entry, so it asks
-           for one every single day. The .date div is the human label; keep both. -->
+           for one every single day. Leave the .date div EMPTY: write-up-ui.js fills the
+           human label from data-day. Do not type a weekday, because models get weekday
+           arithmetic wrong and a hand-typed label can disagree with the date beside it. -->
       <div class="journal">
-        <div class="day" data-day="{{YYYY-MM-DD}}"><div class="date">{{Weekday &middot; Mon DD}}</div><h3>{{DAY_TITLE: what that day was about}}</h3>
+        <div class="day" data-day="{{YYYY-MM-DD}}"><div class="date"></div><h3>{{DAY_TITLE: what that day was about}}</h3>
           <ul><li>{{ACCOMPLISHMENT: what got done / changed that day. Repeat.}}</li></ul></div>
         <!-- repeat .day per working day -->
       </div>

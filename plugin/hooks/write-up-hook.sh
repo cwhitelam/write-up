@@ -37,34 +37,42 @@ esac
 command -v git >/dev/null 2>&1 || quiet
 
 cd "${CLAUDE_PROJECT_DIR:-.}" 2>/dev/null || quiet
-root=$(git rev-parse --show-toplevel 2>/dev/null) || quiet
-[ -n "$root" ] || quiet
+wt_root=$(git rev-parse --show-toplevel 2>/dev/null) || quiet
+[ -n "$wt_root" ] || quiet
+cd "$wt_root" 2>/dev/null || quiet
 
-# One wiki per repository, not one per worktree. --show-toplevel returns the worktree,
-# so a branch worked in .worktrees/foo would write its article into that worktree and
-# vanish with it, leaving the real front page short. --git-common-dir points at the main
-# checkout's .git from anywhere, including from the main checkout itself.
+# One wiki per repository, not one per worktree: the article, the skip files and the
+# config all live in the MAIN checkout, or a branch worked in .worktrees/foo would
+# write its article into that worktree and lose it when the worktree is dropped. But
+# every git QUESTION below (which branch, is it clean, is it pushed) must be asked
+# from the worktree itself: cd-ing into the main checkout first would gate on
+# whatever branch main happens to have checked out, a different branch entirely.
+main_root="$wt_root"
 common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
 case "$common" in
-  */.git) main=${common%/.git}; [ -d "$main" ] && root="$main" ;;
+  */.git) d=${common%/.git}; [ -d "$d" ] && main_root="$d" ;;
 esac
 
-cd "$root" 2>/dev/null || quiet
-
 # ---------------------------------------------------------------- config ----
-# Five scalars out of .write-up.json. Reading them with grep beats depending on jq,
-# which is no more installed than python is.
-CFG=".write-up.json"
+# Scalars out of .write-up.json, read from the main checkout. Reading them with
+# grep beats depending on jq, which is no more installed than python is.
+CFG="$main_root/.write-up.json"
 flat=""
-[ -f "$CFG" ] && flat=$(tr -d '\n' < "$CFG" 2>/dev/null)
+[ -f "$CFG" ] && flat=$(tr -d '\n\r' < "$CFG" 2>/dev/null)
 
-cfg_str() { # cfg_str <key> <default>
+# The hook's own flags live inside the "hook" object. Grepping the whole file for a
+# key like "enabled" reads screenshots.enabled instead whenever that block happens
+# to come first, so booleans are scoped to the hook object's slice.
+hook_seg=$(printf '%s' "$flat" | sed -n 's/.*"hook"[[:space:]]*:[[:space:]]*{\([^}]*\)}.*/\1/p')
+[ -n "$hook_seg" ] || hook_seg="$flat"
+
+cfg_str() { # cfg_str <key> <default>   (whole-file scope: string keys are unique)
   v=$(printf '%s' "$flat" | grep -o "\"$1\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" 2>/dev/null |
       head -1 | sed 's/.*"\([^"]*\)"$/\1/')
   if [ -n "$v" ]; then printf '%s' "$v"; else printf '%s' "$2"; fi
 }
-cfg_bool() { # cfg_bool <key> <default>
-  v=$(printf '%s' "$flat" | grep -o "\"$1\"[[:space:]]*:[[:space:]]*[a-z][a-z]*" 2>/dev/null |
+cfg_bool() { # cfg_bool <key> <default>   (hook-object scope)
+  v=$(printf '%s' "$hook_seg" | grep -o "\"$1\"[[:space:]]*:[[:space:]]*[a-z][a-z]*" 2>/dev/null |
       head -1 | sed 's/.*[:[:space:]]//')
   case "$v" in true | false) printf '%s' "$v" ;; *) printf '%s' "$2" ;; esac
 }
@@ -80,7 +88,7 @@ DAYS=$(cfg_bool dayEntries true)
 branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || quiet
 [ -n "$branch" ] && [ "$branch" != "HEAD" ] || quiet
 
-skip_seg=$(printf '%s' "$flat" | grep -o '"skipBranches"[^]]*]' 2>/dev/null)
+skip_seg=$(printf '%s' "$hook_seg" | grep -o '"skipBranches"[^]]*]' 2>/dev/null)
 if [ -n "$skip_seg" ]; then
   case "$skip_seg" in *"\"$branch\""*) quiet ;; esac
 else
@@ -92,8 +100,15 @@ fi
 slug=$(printf '%s' "$branch" | tr -c 'A-Za-z0-9._-' '-' | sed 's/^[-.]*//; s/[-.]*$//')
 [ -n "$slug" ] || slug="work"
 
-article="$OUT/$slug.html"
-[ -f "$OUT/.skip-$slug" ] && quiet
+wiki="$main_root/$OUT"
+article="$wiki/$slug.html"
+[ -f "$wiki/.skip-$slug" ] && quiet
+
+# Paths shown to the model. Relative reads nicer, but from a worktree a relative
+# path resolves against the worktree and the article lands in the wrong checkout,
+# which is exactly the bug this caused in the field. Absolute whenever the roots
+# differ, so the instruction cannot be misresolved.
+if [ "$main_root" = "$wt_root" ]; then wdisp="$OUT"; else wdisp="$wiki"; fi
 
 # ------------------------------------------------------------ finished? ----
 # Clean tree, pushed, and ahead of the default branch. Anything less is work in
@@ -116,24 +131,26 @@ ahead=$(git rev-list --count "$base..HEAD" 2>/dev/null) || quiet
 # --------------------------------------------------------------- no article ----
 if [ ! -f "$article" ]; then
   [ "$WRAPUP" = "true" ] || quiet
-  block "Branch $branch looks finished: committed, pushed, ahead of $base, and it has no write-up yet. Invoke the write-up skill to write $article from what you already know of this work, without re-reading the transcript. If no write-up is wanted, create $OUT/.skip-$slug to silence this."
+  block "Branch $branch is finished as far as git can tell: committed, pushed, ahead of $base, and it has no write-up yet. Invoke the write-up skill to write $wdisp/$slug.html from what you already know of this work, describing its actual state: if it is mid-review, unmerged, or has known blockers, say so in the lead and set Status to Mid-flight instead of assuming it shipped. If no write-up is wanted, create $wdisp/.skip-$slug to silence this."
 fi
 
 # ------------------------------------------------------------------ stale? ----
 # Did real work land after the article was last touched? Asking git this directly
 # beats comparing file mtimes, which collide within the same second and reset on
-# checkout. If the article is not committed yet there is nothing to compare.
-last_doc=$(git log -1 --format=%H -- "$article" 2>/dev/null)
+# checkout. Pathspecs are anchored with :(top) so they mean the same thing from a
+# worktree as from the main checkout. A machine-local (uncommitted) article has no
+# history to compare, so the gate stays quiet there.
+last_doc=$(git log -1 --format=%H -- ":(top)$OUT/$slug.html" 2>/dev/null)
 if [ -n "$last_doc" ]; then
-  since=$(git rev-list --count "$last_doc..HEAD" -- . ":(exclude)$article" 2>/dev/null)
+  since=$(git rev-list --count "$last_doc..HEAD" -- . ":(top,exclude)$OUT/$slug.html" 2>/dev/null)
   if [ "${since:-0}" -gt 0 ] 2>/dev/null; then
-    block "$since commit(s) landed on $branch after $article was last updated. Invoke the write-up skill in REFRESH mode: append or update only the sections the new work changed, and leave the rest of the prose alone."
+    block "$since commit(s) landed on $branch after $wdisp/$slug.html was last updated. Invoke the write-up skill in REFRESH mode: append or update only the sections the new work changed, and leave the rest of the prose alone."
   fi
 fi
 
 # -------------------------------------------------------------- day entry ----
 [ "$DAYS" = "true" ] || quiet
-[ -f "$OUT/.skip-day-$slug" ] && quiet
+[ -f "$wiki/.skip-day-$slug" ] && quiet
 today=$(date +%Y-%m-%d 2>/dev/null) || quiet
 grep -q "data-day=.$today" "$article" 2>/dev/null && quiet
 
@@ -145,4 +162,4 @@ if grep -q 'class="day"' "$article" 2>/dev/null; then
   grep -q "data-day=" "$article" 2>/dev/null || quiet
 fi
 
-block "End of a working day on $branch and $today is not in the write-up Day by day section yet. Invoke the write-up skill in DAY ENTRY mode: append ONE new day entry dated $today to $article, oldest first, with a short title and 2-5 bullets of what actually got done and decided today, from what you already hold in session context. Do not touch any other section. To silence day entries for this branch, create $OUT/.skip-day-$slug."
+block "End of a working day on $branch and $today is not in the write-up Day by day section yet. Invoke the write-up skill in DAY ENTRY mode: append ONE new day entry dated $today to $wdisp/$slug.html, oldest first, with a short title and 2-5 bullets of what actually got done and decided today, from what you already hold in session context. Leave the .date div empty; the runtime fills the label from data-day. Do not touch any other section. To silence day entries for this branch, create $wdisp/.skip-day-$slug."

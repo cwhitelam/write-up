@@ -37,28 +37,35 @@ done
 
 [ -n "$SINCE" ] || [ -n "$SESSION" ] || SINCE=$(date +%Y-%m-%d)
 
+# Dates compare as numbers, not strings: [ a \< b ] is a bashism that dash, the
+# /bin/sh of Debian and Ubuntu, rejects outright.
+SINCE_N=""
+[ -n "$SINCE" ] && SINCE_N=$(printf '%s' "$SINCE" | tr -cd '0-9')
+
 # --projects wins over $HOME. A scheduled task does not inherit an interactive
 # shell's environment, and guessing at HOME there is how this silently found nothing.
 PROJECTS="${PROJECTS_ARG:-$HOME/.claude/projects}"
 [ -d "$PROJECTS" ] || { echo "no Claude transcript root at $PROJECTS" >&2; exit 1; }
 
 # Claude Code names each project dir after the cwd with [:\/.] replaced by '-'.
+TMP=$(mktemp 2>/dev/null || printf '%s' "${TMPDIR:-/tmp}/wu-digest.$$")
+trap 'rm -f "$TMP" "$TMP.s" "$TMP.d"' EXIT INT TERM
+: > "$TMP"
+
+# Dir names inherit whatever the encoded cwd contained, including spaces, so this
+# streams find through read -r instead of word-splitting a $DIRS variable.
 if [ "$ALL" = "1" ]; then
-  DIRS=$(find "$PROJECTS" -mindepth 1 -maxdepth 1 -type d 2>/dev/null)
+  find "$PROJECTS" -mindepth 1 -maxdepth 1 -type d 2>/dev/null > "$TMP.d"
 else
   here=$(pwd)
   root=$(git rev-parse --show-toplevel 2>/dev/null) && here="$root"
   enc=$(printf '%s' "$here" | sed 's/[:\/.]/-/g')
-  DIRS=$(find "$PROJECTS" -mindepth 1 -maxdepth 1 -type d -name "$enc" 2>/dev/null)
-  [ -n "$DIRS" ] || DIRS=$(find "$PROJECTS" -mindepth 1 -maxdepth 1 -type d -name "$enc*" 2>/dev/null)
+  find "$PROJECTS" -mindepth 1 -maxdepth 1 -type d -name "$enc" 2>/dev/null > "$TMP.d"
+  [ -s "$TMP.d" ] || find "$PROJECTS" -mindepth 1 -maxdepth 1 -type d -name "$enc*" 2>/dev/null > "$TMP.d"
 fi
-[ -n "$DIRS" ] || { echo "no transcripts for this repo; try --all" >&2; exit 1; }
+[ -s "$TMP.d" ] || { echo "no transcripts for this repo; try --all" >&2; exit 1; }
 
-TMP=$(mktemp 2>/dev/null || printf '%s' "${TMPDIR:-/tmp}/wu-digest.$$")
-trap 'rm -f "$TMP" "$TMP.s"' EXIT INT TERM
-: > "$TMP"
-
-for d in $DIRS; do
+while IFS= read -r d; do
   for f in "$d"/*.jsonl; do
     [ -f "$f" ] || continue
     sid=$(basename "$f" .jsonl)
@@ -69,7 +76,11 @@ for d in $DIRS; do
     grep '"origin":{"kind":"human"}' "$f" 2>/dev/null | while IFS= read -r line; do
       ts=$(printf '%s' "$line" | sed -n 's/.*"timestamp":"\([^"]*\)".*/\1/p')
       [ -n "$ts" ] || continue
-      case "$SINCE" in "") ;; *) [ "${ts%%T*}" \< "$SINCE" ] && continue ;; esac
+      if [ -n "$SINCE_N" ]; then
+        day_n=$(printf '%s' "${ts%%T*}" | tr -cd '0-9')
+        case "$day_n" in '' | *[!0-9]*) continue ;; esac
+        [ "$day_n" -lt "$SINCE_N" ] && continue
+      fi
 
       br=$(printf '%s' "$line" | sed -n 's/.*"gitBranch":"\([^"]*\)".*/\1/p')
       [ -n "$br" ] || br="-"
@@ -91,7 +102,7 @@ for d in $DIRS; do
       printf '%s\t%s\t%s\t%s\n' "$ts" "$sid" "$br" "$txt" >> "$TMP"
     done
   done
-done
+done < "$TMP.d"
 
 [ -s "$TMP" ] || { echo "no messages found"; exit 0; }
 
