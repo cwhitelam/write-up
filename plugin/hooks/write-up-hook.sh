@@ -39,6 +39,16 @@ command -v git >/dev/null 2>&1 || quiet
 cd "${CLAUDE_PROJECT_DIR:-.}" 2>/dev/null || quiet
 root=$(git rev-parse --show-toplevel 2>/dev/null) || quiet
 [ -n "$root" ] || quiet
+
+# One wiki per repository, not one per worktree. --show-toplevel returns the worktree,
+# so a branch worked in .worktrees/foo would write its article into that worktree and
+# vanish with it, leaving the real front page short. --git-common-dir points at the main
+# checkout's .git from anywhere, including from the main checkout itself.
+common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+case "$common" in
+  */.git) main=${common%/.git}; [ -d "$main" ] && root="$main" ;;
+esac
+
 cd "$root" 2>/dev/null || quiet
 
 # ---------------------------------------------------------------- config ----

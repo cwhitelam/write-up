@@ -191,6 +191,16 @@ def load_config(root):
 
 
 def wiki_dir(root, cfg):
+    """Where this repository's wiki lives: always the main checkout, never a worktree.
+
+    A worktree's own root would give it a private wiki that disappears when the worktree
+    is dropped, and leave the real front page missing that article. One repository, one
+    wiki. Home scope has no worktrees, so it is unaffected.
+    """
+    if root and os.path.normpath(root) != os.path.normpath(home_root()):
+        main = main_checkout(root)
+        if main and os.path.isdir(main):
+            root = main
     return os.path.join(root, *cfg["outputDir"].replace("\\", "/").split("/"))
 
 
